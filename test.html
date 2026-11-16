@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Machbarkeitstest Ton und Sperrbildschirm</title>
+<style>
+  :root { --bg:#111418; --fg:#f2f4f7; --mute:#8b94a1; --card:#1b2027; --ok:#3ecf8e; --bad:#ff5d5d; --acc:#ff4d6d; --line:#262c35; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.4 -apple-system, system-ui, sans-serif; padding:16px; max-width:520px; margin-inline:auto; }
+  h1 { font-size:18px; margin:0 0 12px; font-weight:600; }
+  h2 { font-size:14px; margin:0 0 8px; color:var(--mute); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+  .card { background:var(--card); border-radius:14px; padding:14px; margin-bottom:12px; }
+  button { width:100%; padding:14px; font-size:16px; font-weight:600; border:0; border-radius:12px; background:var(--acc); color:#fff; }
+  button.sec { background:#2a313b; }
+  button:disabled { opacity:.4; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+  .row { display:flex; justify-content:space-between; gap:12px; padding:6px 0; border-bottom:1px solid var(--line); font-size:14px; }
+  .row:last-child { border:0; }
+  .row span:first-child { color:var(--mute); }
+  .ok { color:var(--ok); } .bad { color:var(--bad); }
+  #status { position:sticky; top:0; z-index:5; background:var(--card); border-radius:10px; padding:10px 12px; text-align:center; margin-bottom:12px; color:var(--mute); min-height:22px; box-shadow:0 2px 8px rgba(0,0,0,.4); }
+  #status.ok { color:var(--ok); } #status.bad { color:var(--bad); }
+  label.chk { display:flex; gap:10px; align-items:flex-start; font-size:14px; margin:10px 0; }
+  select { width:100%; padding:12px; font-size:16px; border-radius:10px; background:#14181d; color:var(--fg); border:1px solid var(--line); }
+  textarea { width:100%; height:150px; margin-top:8px; background:#14181d; color:var(--fg); border:1px solid var(--line); border-radius:8px; font:12px ui-monospace, monospace; padding:8px; }
+  #log { font:12px/1.5 ui-monospace, monospace; color:var(--mute); white-space:pre-wrap; max-height:180px; overflow:auto; }
+  .big { font-size:44px; font-weight:700; text-align:center; font-variant-numeric:tabular-nums; }
+  ol { margin:0; padding-left:20px; font-size:14px; color:var(--mute); }
+  ol li { margin:4px 0; }
+</style>
+</head>
+<body>
+<h1>Machbarkeitstest <small style="color:var(--mute);font-weight:400">Ton, Sprache, gesperrtes Display</small></h1>
+<div id="status">Bereit</div>
+
+<div class="card">
+  <h2>1 Fähigkeiten dieses Browsers</h2>
+  <div class="row"><span>Web Bluetooth</span><span id="c-bt">–</span></div>
+  <div class="row"><span>Töne (Web Audio)</span><span id="c-audio">–</span></div>
+  <div class="row"><span>Sprachausgabe</span><span id="c-speech">–</span></div>
+  <div class="row"><span>Deutsche Stimme</span><span id="c-voice">–</span></div>
+  <div class="row"><span>Vibration</span><span id="c-vib">–</span></div>
+  <div class="row"><span>Display-Sperre verhindern</span><span id="c-wl">–</span></div>
+</div>
+
+<div class="card">
+  <h2>2 Sofort-Tests (Kopfhörer anschließen)</h2>
+  <div class="grid3">
+    <button id="t-beep" class="sec">Piepton</button>
+    <button id="t-speak" class="sec">Ansage</button>
+    <button id="t-vib" class="sec">Vibration</button>
+  </div>
+  <div class="row" style="margin-top:10px"><span>Vibration ausgelöst</span><span id="t-vib-res">–</span></div>
+</div>
+
+<div class="card">
+  <h2>3 Pulsgurt (optional, empfohlen)</h2>
+  <button id="connect" class="sec">Pulsgurt verbinden</button>
+  <div class="row" style="margin-top:10px"><span>Puls</span><span id="bpm">–</span></div>
+  <div class="row"><span>Gerät</span><span id="dev">–</span></div>
+</div>
+
+<div class="card">
+  <h2>4 Sperr-Test</h2>
+  <ol>
+    <li>Dauer wählen, Optionen setzen, <b>Test starten</b> tippen</li>
+    <li>Warten, bis "Test gestartet, bitte jetzt das Handy sperren" kommt, dann Handy sperren und in die Tasche stecken</li>
+    <li>Alle 30 Sekunden kommt ein Piepton und die Ansage "Ansage Nummer, Puls ..."</li>
+    <li>Am Ende "Test beendet" abwarten, Handy entsperren, Ergebnis unten ansehen</li>
+  </ol>
+  <label style="display:block;margin-top:12px;font-size:14px;color:var(--mute)">Dauer</label>
+  <select id="dur">
+    <option value="3">3 Minuten</option>
+    <option value="5" selected>5 Minuten</option>
+    <option value="10">10 Minuten</option>
+  </select>
+  <label class="chk"><input type="checkbox" id="keep"> <span>Stilles Audio im Dauerlauf (Versuch, die App im Hintergrund wach zu halten, zeigt evtl. einen Medienplayer an)</span></label>
+  <label class="chk"><input type="checkbox" id="wl"> <span>Display-Sperre verhindern (nur relevant, solange das Display an ist)</span></label>
+  <div class="grid">
+    <button id="start">Test starten</button>
+    <button id="stop" class="sec" disabled>Abbrechen</button>
+  </div>
+  <div class="big" id="clock" style="margin-top:12px">00:00</div>
+</div>
+
+<div class="card">
+  <h2>Ergebnis</h2>
+  <div id="result" style="font-size:14px;color:var(--mute)">Noch kein Test gelaufen</div>
+  <button id="copy" class="sec" style="margin-top:10px" disabled>Ergebnis kopieren</button>
+  <textarea id="resulttext" readonly style="display:none"></textarea>
+</div>
+
+<div class="card"><div id="log">Log…</div></div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var A = { ctx: null, audio: null, voice: null, wl: null, device: null };
+  var T = { run: false, t0: 0, durMs: 0, lastTick: 0, ticks: 0, maxTickGap: 0, nextAnn: 1,
+            ann: [], vis: [], bpm: null, timer: null, keep: false, wl: false,
+            ble: { n: 0, last: 0, maxGap: 0 } };
+
+  function log(m) {
+    var el = $('log');
+    el.textContent = new Date().toLocaleTimeString('de-DE') + '  ' + m + '\n' + (el.textContent === 'Log…' ? '' : el.textContent);
+  }
+  function setStatus(m, c) { var s = $('status'); s.textContent = m; s.className = c || ''; }
+  function flag(id, ok, text) { var e = $(id); e.textContent = text; e.className = ok ? 'ok' : 'bad'; }
+  function fmt(ms) { var s = Math.floor(ms / 1000), m = Math.floor(s / 60), x = s % 60; return (m < 10 ? '0' : '') + m + ':' + (x < 10 ? '0' : '') + x; }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function fmtErr(e) {
+    if (e && e.message) return (e.name ? e.name + ': ' : '') + e.message;
+    var s; try { s = JSON.stringify(e); } catch (x) { s = String(e); }
+    return 'Rohwert ' + s + ' (' + (typeof e) + ')';
+  }
+
+  // Fähigkeiten
+  function loadVoices() {
+    try {
+      var v = speechSynthesis.getVoices().filter(function (x) { return /^de/i.test(x.lang); });
+      A.voice = v[0] || null;
+      flag('c-voice', !!A.voice, A.voice ? A.voice.name : 'keine gefunden');
+    } catch (e) { flag('c-voice', false, 'Fehler'); }
+  }
+  flag('c-bt', !!navigator.bluetooth, navigator.bluetooth ? 'ja' : 'nein');
+  flag('c-audio', !!(window.AudioContext || window.webkitAudioContext), (window.AudioContext || window.webkitAudioContext) ? 'ja' : 'nein');
+  flag('c-speech', 'speechSynthesis' in window, 'speechSynthesis' in window ? 'ja' : 'nein');
+  flag('c-vib', !!navigator.vibrate, navigator.vibrate ? 'Funktion vorhanden' : 'nicht vorhanden');
+  flag('c-wl', !!navigator.wakeLock, navigator.wakeLock ? 'ja' : 'nein');
+  if ('speechSynthesis' in window) { loadVoices(); try { speechSynthesis.onvoiceschanged = loadVoices; } catch (e) {} }
+
+  // Ton und Sprache
+  function ensureCtx() {
+    if (!A.ctx) { var C = window.AudioContext || window.webkitAudioContext; A.ctx = new C(); }
+    if (A.ctx.state === 'suspended') { try { A.ctx.resume(); } catch (e) {} }
+  }
+  function beep(times) {
+    try {
+      ensureCtx();
+      var t = A.ctx.currentTime;
+      for (var i = 0; i < times; i++) {
+        var o = A.ctx.createOscillator(), g = A.ctx.createGain(), s = t + i * 0.3;
+        o.frequency.value = 880;
+        g.gain.setValueAtTime(0.0001, s);
+        g.gain.exponentialRampToValueAtTime(0.4, s + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, s + 0.2);
+        o.connect(g); g.connect(A.ctx.destination);
+        o.start(s); o.stop(s + 0.22);
+      }
+    } catch (e) { log('Ton-Fehler: ' + fmtErr(e)); }
+  }
+  function speak(text) {
+    try {
+      var u = new SpeechSynthesisUtterance(text);
+      u.lang = 'de-DE'; if (A.voice) u.voice = A.voice;
+      speechSynthesis.speak(u);
+    } catch (e) { log('Sprach-Fehler: ' + fmtErr(e)); }
+  }
+
+  // Stilles Audio
+  function silentWav() {
+    var sr = 8000, n = sr, buf = new ArrayBuffer(44 + n), v = new DataView(buf);
+    function ws(o, s) { for (var i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); }
+    ws(0, 'RIFF'); v.setUint32(4, 36 + n, true); ws(8, 'WAVE'); ws(12, 'fmt ');
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, sr, true); v.setUint32(28, sr, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+    ws(36, 'data'); v.setUint32(40, n, true);
+    for (var i = 0; i < n; i++) v.setUint8(44 + i, 128);
+    return new Blob([buf], { type: 'audio/wav' });
+  }
+  function startSilent() {
+    try {
+      A.audio = new Audio(URL.createObjectURL(silentWav()));
+      A.audio.loop = true;
+      var p = A.audio.play();
+      if (p && p.then) p.then(function () { log('Stilles Audio läuft'); }, function (e) { log('Stilles Audio blockiert: ' + fmtErr(e)); });
+      try { if (navigator.mediaSession) navigator.mediaSession.metadata = new MediaMetadata({ title: 'Lauf-Test', artist: 'Puls' }); } catch (e) {}
+    } catch (e) { log('Stilles Audio Fehler: ' + fmtErr(e)); }
+  }
+  function stopSilent() { try { if (A.audio) { A.audio.pause(); A.audio = null; } } catch (e) {} }
+
+  async function lockScreen() {
+    try { if (navigator.wakeLock) { A.wl = await navigator.wakeLock.request('screen'); log('Wake Lock aktiv'); } }
+    catch (e) { log('Wake Lock abgelehnt: ' + fmtErr(e)); }
+  }
+  function unlockScreen() { try { if (A.wl) A.wl.release(); } catch (e) {} A.wl = null; }
+
+  // Sofort-Tests
+  $('t-beep').addEventListener('click', function () { beep(2); });
+  $('t-speak').addEventListener('click', function () { ensureCtx(); speak('Eins, zwei, drei. Test der Sprachansage. Puls einhundertvierzig'); });
+  $('t-vib').addEventListener('click', function () {
+    var r = false;
+    try { r = navigator.vibrate ? navigator.vibrate([200, 100, 200]) : false; } catch (e) {}
+    $('t-vib-res').textContent = r ? 'Befehl akzeptiert, hast du etwas gespürt?' : 'nein';
+    $('t-vib-res').className = r ? 'ok' : 'bad';
+  });
+
+  // Pulsgurt
+  function onValue(ev) {
+    var dv = ev.target.value, f = dv.getUint8(0), bpm;
+    bpm = (f & 1) ? dv.getUint16(1, true) : dv.getUint8(1);
+    var now = Date.now();
+    T.bpm = bpm; $('bpm').textContent = bpm;
+    if (T.run) {
+      if (T.ble.last) { var g = now - T.ble.last; if (g > T.ble.maxGap) T.ble.maxGap = g; }
+      T.ble.last = now; T.ble.n++;
+    }
+  }
+  async function setupBle(dev) {
+    var lastErr;
+    for (var a = 1; a <= 3; a++) {
+      try {
+        setStatus('Verbinde… Versuch ' + a + '/3');
+        var server = await dev.gatt.connect();
+        var svc = await server.getPrimaryService('heart_rate');
+        var ch = await svc.getCharacteristic('heart_rate_measurement');
+        ch.addEventListener('characteristicvaluechanged', onValue);
+        await ch.startNotifications();
+        setStatus('Pulsgurt verbunden', 'ok'); log('Pulsgurt verbunden');
+        return;
+      } catch (e) { lastErr = e; log('Versuch ' + a + ': ' + fmtErr(e)); try { dev.gatt.disconnect(); } catch (x) {} await sleep(1500); }
+    }
+    throw lastErr;
+  }
+  $('connect').addEventListener('click', async function () {
+    try {
+      setStatus('Bitte Gurt im Dialog wählen');
+      A.device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: ['heart_rate'] });
+      $('dev').textContent = A.device.name || 'unbenannt';
+      A.device.addEventListener('gattserverdisconnected', async function () {
+        log('Pulsgurt-Verbindung verloren'); $('bpm').textContent = '–';
+        for (var i = 1; i <= 3; i++) { await sleep(2000 * i); try { await setupBle(A.device); return; } catch (e) {} }
+      });
+      await setupBle(A.device);
+    } catch (e) { setStatus('Fehler: ' + fmtErr(e), 'bad'); log('FEHLER: ' + fmtErr(e)); }
+  });
+
+  // Sperr-Test
+  function fire(n, el) {
+    var planned = n * 30000, late = el - planned;
+    var state = A.ctx ? A.ctx.state : '–';
+    beep(1);
+    speak('Ansage ' + n + (T.bpm ? ', Puls ' + T.bpm : ''));
+    T.ann.push({ n: n, planned: planned, late: late, ctx: state, hidden: document.hidden, bpm: T.bpm });
+    log('Ansage ' + n + ' ausgelöst (' + (late / 1000).toFixed(1) + ' s spät, Audio ' + state + (document.hidden ? ', Seite verborgen' : '') + ')');
+  }
+  function tick() {
+    var now = Date.now(), gap = now - T.lastTick;
+    if (gap > T.maxTickGap) T.maxTickGap = gap;
+    T.lastTick = now; T.ticks++;
+    var el = now - T.t0;
+    while (T.nextAnn * 30000 <= el && T.nextAnn * 30000 < T.durMs) { fire(T.nextAnn, el); T.nextAnn++; }
+    $('clock').textContent = fmt(el) + ' / ' + fmt(T.durMs);
+    if (el >= T.durMs) finish(false);
+  }
+  function finish(aborted) {
+    if (!T.run) return;
+    clearInterval(T.timer); T.run = false;
+    var el = Date.now() - T.t0;
+    beep(3); speak(aborted ? 'Test abgebrochen' : 'Test beendet');
+    stopSilent(); unlockScreen();
+    $('start').disabled = false; $('stop').disabled = true;
+    setStatus(aborted ? 'Abgebrochen' : 'Test beendet, bitte Ergebnis ansehen', aborted ? 'bad' : 'ok');
+    showResult(el);
+  }
+  function showResult(el) {
+    var expectedTicks = Math.floor(el / 1000);
+    var planned = Math.floor((T.durMs - 1) / 30000);
+    var late5 = T.ann.filter(function (a) { return a.late > 5000; }).length;
+    var states = {}; T.ann.forEach(function (a) { states[a.ctx] = (states[a.ctx] || 0) + 1; });
+    var lines = [];
+    lines.push('Dauer: geplant ' + fmt(T.durMs) + ', tatsächlich ' + fmt(el));
+    lines.push('Optionen: stilles Audio ' + (T.keep ? 'an' : 'aus') + ', Display-Sperre verhindern ' + (T.wl ? 'an' : 'aus'));
+    lines.push('Timer-Ticks: ' + T.ticks + ' von ' + expectedTicks + ' erwartet, größte Lücke ' + (T.maxTickGap / 1000).toFixed(1) + ' s');
+    lines.push('Ansagen ausgelöst: ' + T.ann.length + ' von ' + planned + ' geplant, davon über 5 s verspätet: ' + late5);
+    lines.push('Audio-Zustand bei Ansagen: ' + (Object.keys(states).map(function (k) { return k + ' ×' + states[k]; }).join(', ') || '–'));
+    lines.push('Seite verborgen/sichtbar: ' + (T.vis.length ? T.vis.map(function (v) { return (v.hidden ? 'verborgen' : 'sichtbar') + ' bei ' + fmt(v.at); }).join('; ') : 'kein Wechsel erfasst'));
+    lines.push('Pulswerte empfangen: ' + T.ble.n + ', größte Lücke ' + (T.ble.maxGap / 1000).toFixed(1) + ' s' + (T.ble.n ? '' : ' (kein Gurt verbunden oder keine Daten)'));
+    lines.push('Bitte notieren: Welche Ansagen (Nummer) hast du im Kopfhörer GEHÖRT?');
+    var text = lines.join('\n');
+    $('result').innerHTML = lines.map(function (l) { return '<div class="row"><span style="color:var(--fg)">' + l.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</span></div>'; }).join('');
+    $('resulttext').value = text; $('copy').disabled = false;
+  }
+  $('start').addEventListener('click', function () {
+    ensureCtx();
+    T.keep = $('keep').checked; T.wl = $('wl').checked;
+    if (T.keep) startSilent();
+    if (T.wl) lockScreen();
+    T.run = true; T.t0 = Date.now(); T.durMs = parseInt($('dur').value, 10) * 60000;
+    T.lastTick = T.t0; T.ticks = 0; T.maxTickGap = 0; T.nextAnn = 1; T.ann = []; T.vis = [];
+    T.ble = { n: 0, last: 0, maxGap: 0 };
+    $('start').disabled = true; $('stop').disabled = false;
+    $('result').textContent = 'Test läuft…'; $('copy').disabled = true; $('resulttext').style.display = 'none';
+    setStatus('Test läuft, bitte Handy sperren');
+    beep(2); speak('Test gestartet. Bitte jetzt das Handy sperren.');
+    T.timer = setInterval(tick, 1000);
+    log('Test gestartet, ' + $('dur').value + ' min');
+  });
+  $('stop').addEventListener('click', function () { finish(true); });
+  $('copy').addEventListener('click', async function () {
+    var ta = $('resulttext'); ta.style.display = 'block';
+    try { await navigator.clipboard.writeText(ta.value); setStatus('Ergebnis kopiert', 'ok'); }
+    catch (e) { ta.focus(); ta.select(); setStatus('Kopieren blockiert: Text unten markieren und manuell kopieren', 'bad'); }
+  });
+
+  document.addEventListener('visibilitychange', function () {
+    if (T.run) T.vis.push({ at: Date.now() - T.t0, hidden: document.hidden });
+    log('Seite ' + (document.hidden ? 'verborgen' : 'sichtbar'));
+  });
+  try {
+    document.addEventListener('freeze', function () { log('Seite eingefroren (freeze)'); });
+    document.addEventListener('resume', function () { log('Seite wieder aktiv (resume)'); });
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>
