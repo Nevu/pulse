@@ -3,30 +3,40 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Puls Minitest</title>
+<title>Puls Aufzeichnung v2</title>
 <style>
-  :root { --bg:#111418; --fg:#f2f4f7; --mute:#8b94a1; --card:#1b2027; --ok:#3ecf8e; --bad:#ff5d5d; --acc:#ff4d6d; }
+  :root { --bg:#111418; --fg:#f2f4f7; --mute:#8b94a1; --card:#1b2027; --ok:#3ecf8e; --bad:#ff5d5d; --acc:#ff4d6d; --line:#262c35; }
   * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.4 -apple-system, system-ui, sans-serif; padding:20px; max-width:480px; margin-inline:auto; }
-  h1 { font-size:18px; margin:0 0 16px; font-weight:600; }
-  .card { background:var(--card); border-radius:14px; padding:16px; margin-bottom:12px; }
-  .bpm { font-size:96px; font-weight:700; line-height:1; text-align:center; font-variant-numeric:tabular-nums; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.4 -apple-system, system-ui, sans-serif; padding:16px; max-width:520px; margin-inline:auto; }
+  h1 { font-size:18px; margin:0 0 12px; font-weight:600; }
+  h1 small { color:var(--mute); font-weight:400; font-size:13px; margin-left:6px; }
+  .card { background:var(--card); border-radius:14px; padding:14px; margin-bottom:12px; }
+  .bpm { font-size:88px; font-weight:700; line-height:1; text-align:center; font-variant-numeric:tabular-nums; }
   .bpm.live { color:var(--acc); }
   .unit { text-align:center; color:var(--mute); font-size:14px; margin-top:4px; }
-  button { width:100%; padding:16px; font-size:17px; font-weight:600; border:0; border-radius:12px; background:var(--acc); color:#fff; }
-  button.sec { background:#2a313b; margin-top:8px; }
+  button { width:100%; padding:15px; font-size:17px; font-weight:600; border:0; border-radius:12px; background:var(--acc); color:#fff; }
+  button.sec { background:#2a313b; }
+  button.rec { background:#2a313b; }
+  button.rec.on { background:var(--bad); }
   button:disabled { opacity:.4; }
-  .row { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #262c35; font-size:14px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:8px; }
+  .row { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); font-size:14px; }
   .row:last-child { border:0; }
   .row span:first-child { color:var(--mute); }
   .ok { color:var(--ok); } .bad { color:var(--bad); }
-  #status { position:sticky; top:0; z-index:5; background:#1b2027; border-radius:10px; padding:10px 12px; text-align:center; margin-bottom:12px; color:var(--mute); min-height:22px; }
+  #status { position:sticky; top:0; z-index:5; background:var(--card); border-radius:10px; padding:10px 12px; text-align:center; margin-bottom:12px; color:var(--mute); min-height:22px; box-shadow:0 2px 8px rgba(0,0,0,.4); }
   #status.ok { color:var(--ok); } #status.bad { color:var(--bad); }
-  #log { font:12px/1.5 ui-monospace, monospace; color:var(--mute); white-space:pre-wrap; max-height:140px; overflow:auto; }
+  canvas { width:100%; height:170px; display:block; border-radius:8px; background:#14181d; }
+  label.chk { display:flex; gap:10px; align-items:center; font-size:14px; color:var(--mute); margin:10px 0 0; }
+  textarea { width:100%; height:110px; margin-top:8px; background:#14181d; color:var(--fg); border:1px solid var(--line); border-radius:8px; font:12px ui-monospace, monospace; padding:8px; }
+  #log { font:12px/1.5 ui-monospace, monospace; color:var(--mute); white-space:pre-wrap; max-height:160px; overflow:auto; }
+  .stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; text-align:center; margin:10px 0; }
+  .stats div b { display:block; font-size:22px; font-variant-numeric:tabular-nums; }
+  .stats div span { font-size:12px; color:var(--mute); }
 </style>
 </head>
 <body>
-<h1>Puls Minitest</h1>
+<h1>Puls Aufzeichnung<small>v2</small></h1>
 <div id="status">Nicht verbunden</div>
 
 <div class="card">
@@ -35,21 +45,35 @@
 </div>
 
 <button id="connect">Pulsgurt verbinden</button>
-<button id="disconnect" class="sec" disabled>Trennen</button>
+<div class="grid">
+  <button id="disconnect" class="sec" disabled>Trennen</button>
+  <button id="rec" class="rec" disabled>Aufzeichnung starten</button>
+</div>
+<label class="chk"><input type="checkbox" id="all" checked> Alle Geräte in der Auswahl zeigen (empfohlen)</label>
 
 <div class="card" style="margin-top:12px">
+  <canvas id="chart"></canvas>
+  <div class="stats">
+    <div><b id="s-min">–</b><span>Min</span></div>
+    <div><b id="s-avg">–</b><span>Schnitt</span></div>
+    <div><b id="s-max">–</b><span>Max</span></div>
+  </div>
+  <div class="row"><span>Dauer</span><span id="elapsed">00:00</span></div>
+  <div class="row"><span>Messwerte</span><span id="count">0</span></div>
+  <div class="row"><span>Aussetzer (Lücke &gt; 3 s)</span><span id="gaps">0</span></div>
+  <div class="row"><span>Längste Lücke</span><span id="maxgap">–</span></div>
+  <div class="row"><span>Seit letztem Wert</span><span id="since">–</span></div>
+  <div class="row"><span>Display-Sperre verhindert</span><span id="wl">–</span></div>
   <div class="row"><span>Gerät</span><span id="dev">–</span></div>
-  <div class="row"><span>Letzte Messung</span><span id="last">–</span></div>
-  <div class="row"><span>Messwerte gesamt</span><span id="count">0</span></div>
-  <div class="row"><span>RR-Intervall (ms)</span><span id="rr">–</span></div>
-  <div class="row"><span>Hautkontakt</span><span id="contact">–</span></div>
 </div>
 
 <div class="card">
-  <div class="row"><span>Sicherer Kontext (HTTPS)</span><span id="d-secure">–</span></div>
-  <div class="row"><span>Web Bluetooth vorhanden</span><span id="d-bt">–</span></div>
-  <div class="row"><span>Bluetooth im Frame erlaubt</span><span id="d-policy">–</span></div>
-  <div class="row"><span>Eingebettet (iframe)</span><span id="d-frame">–</span></div>
+  <div class="grid" style="margin-top:0">
+    <button id="copy" class="sec" disabled>CSV kopieren</button>
+    <button id="dl" class="sec" disabled>CSV laden</button>
+  </div>
+  <button id="reset" class="sec" style="margin-top:8px" disabled>Aufzeichnung löschen</button>
+  <textarea id="csv" readonly style="display:none"></textarea>
 </div>
 
 <div class="card"><div id="log">Log…</div></div>
@@ -57,116 +81,253 @@
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
-  var device = null, count = 0;
+  var S = { device:null, connected:false, reconnecting:false, manual:false,
+            rec:false, t0:0, dur:0, samples:[], lastT:0, gaps:0, maxGap:0, wl:null, tickN:0 };
+  var KEY = 'puls_v2_last';
 
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function withTimeout(p, ms, label) {
+    return new Promise(function (resolve, reject) {
+      var t = setTimeout(function () { reject(new Error('Zeitüberschreitung bei ' + label)); }, ms);
+      p.then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); });
+    });
+  }
+  function fmtErr(e) {
+    if (e && e.message) return (e.name ? e.name + ': ' : '') + e.message;
+    var s; try { s = JSON.stringify(e); } catch (x) { s = String(e); }
+    return 'Rohwert ' + s + ' (' + (typeof e) + ')';
+  }
   function log(msg) {
-    var t = new Date().toLocaleTimeString('de-DE');
     var el = $('log');
-    el.textContent = t + '  ' + msg + '\n' + (el.textContent === 'Log…' ? '' : el.textContent);
+    el.textContent = new Date().toLocaleTimeString('de-DE') + '  ' + msg + '\n' + (el.textContent === 'Log…' ? '' : el.textContent);
   }
   function setStatus(msg, cls) { var s = $('status'); s.textContent = msg; s.className = cls || ''; }
-  function flag(id, ok, text) { var e = $(id); e.textContent = text; e.className = ok ? 'ok' : 'bad'; }
+  function fmtDur(ms) {
+    var s = Math.floor(ms / 1000), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+    var p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return (h ? h + ':' : '') + p(m) + ':' + p(x);
+  }
 
-  // Diagnose
-  flag('d-secure', window.isSecureContext, window.isSecureContext ? 'ja' : 'nein');
-  flag('d-bt', !!navigator.bluetooth, navigator.bluetooth ? 'ja' : 'nein');
-  var inFrame = false;
-  try { inFrame = window.self !== window.top; } catch (e) { inFrame = true; }
-  $('d-frame').textContent = inFrame ? 'ja' : 'nein';
-  try {
-    var pol = document.permissionsPolicy || document.featurePolicy;
-    if (pol && pol.allowsFeature) {
-      var allowed = pol.allowsFeature('bluetooth');
-      flag('d-policy', allowed, allowed ? 'ja' : 'nein');
-    } else {
-      $('d-policy').textContent = 'unbekannt';
-    }
-  } catch (e) { $('d-policy').textContent = 'unbekannt'; }
+  function updateButtons() {
+    $('connect').disabled = S.connected || S.reconnecting;
+    $('disconnect').disabled = !S.connected && !S.reconnecting;
+    $('rec').disabled = !S.connected && !S.rec;
+    var has = S.samples.length > 0;
+    $('copy').disabled = !has; $('dl').disabled = !has; $('reset').disabled = !has || S.rec;
+    $('rec').textContent = S.rec ? 'Aufzeichnung stoppen' : 'Aufzeichnung starten';
+    $('rec').className = 'rec' + (S.rec ? ' on' : '');
+  }
 
   if (!navigator.bluetooth) {
     setStatus('Dieser Browser kann kein Web Bluetooth. Auf dem iPhone: Bluefy nutzen', 'bad');
     $('connect').disabled = true;
   }
 
+  // Herzfrequenz-Paket (0x2A37) auswerten
   function parse(dv) {
-    var flags = dv.getUint8(0), i = 1, bpm;
-    if (flags & 0x01) { bpm = dv.getUint16(i, true); i += 2; } else { bpm = dv.getUint8(i); i += 1; }
-    var contactSupported = !!(flags & 0x04), contact = !!(flags & 0x02);
-    if (flags & 0x08) i += 2; // Energy Expended
-    var rr = [];
-    if (flags & 0x10) {
-      while (i + 1 < dv.byteLength) { rr.push(Math.round(dv.getUint16(i, true) / 1024 * 1000)); i += 2; }
-    }
-    return { bpm: bpm, rr: rr, contactSupported: contactSupported, contact: contact };
+    var f = dv.getUint8(0), i = 1, bpm;
+    if (f & 0x01) { bpm = dv.getUint16(i, true); i += 2; } else { bpm = dv.getUint8(i); i += 1; }
+    return { bpm: bpm };
   }
 
   function onValue(ev) {
-    var m = parse(ev.target.value);
-    count++;
-    $('bpm').textContent = m.bpm;
-    $('bpm').className = 'bpm live';
-    $('last').textContent = new Date().toLocaleTimeString('de-DE');
-    $('count').textContent = count;
-    $('rr').textContent = m.rr.length ? m.rr.join(', ') : '–';
-    $('contact').textContent = m.contactSupported ? (m.contact ? 'ja' : 'nein') : 'nicht unterstützt';
+    var now = Date.now(), m = parse(ev.target.value);
+    if (S.rec && S.lastT) {
+      var gap = now - S.lastT;
+      if (gap > 3000) { S.gaps++; if (gap > S.maxGap) S.maxGap = gap; log('Lücke von ' + (gap / 1000).toFixed(1) + ' s'); }
+    }
+    S.lastT = now;
+    $('bpm').textContent = m.bpm; $('bpm').className = 'bpm live';
+    if (S.rec) S.samples.push({ t: now - S.t0, bpm: m.bpm, ts: now });
   }
 
-  function onDisconnect() {
-    setStatus('Verbindung getrennt', 'bad');
-    $('bpm').className = 'bpm';
-    $('disconnect').disabled = true;
-    $('connect').disabled = false;
-    log('getrennt');
+  async function setup(dev) {
+    var lastErr;
+    for (var a = 1; a <= 3; a++) {
+      try {
+        setStatus('Verbinde… Versuch ' + a + '/3');
+        log('GATT-Verbindung, Versuch ' + a);
+        var server = await withTimeout(dev.gatt.connect(), 20000, 'gatt.connect');
+        var service = await withTimeout(server.getPrimaryService('heart_rate'), 15000, 'getPrimaryService');
+        var ch = await withTimeout(service.getCharacteristic('heart_rate_measurement'), 15000, 'getCharacteristic');
+        ch.addEventListener('characteristicvaluechanged', onValue);
+        await withTimeout(ch.startNotifications(), 15000, 'startNotifications');
+        S.connected = true;
+        setStatus('Verbunden', 'ok'); log('Verbunden, Messwerte aktiv');
+        updateButtons();
+        return;
+      } catch (e) {
+        lastErr = e;
+        log('Versuch ' + a + ' fehlgeschlagen: ' + fmtErr(e));
+        try { if (dev.gatt.connected) dev.gatt.disconnect(); } catch (x) {}
+        if (a < 3) await sleep(1500);
+      }
+    }
+    throw lastErr;
   }
 
-  function withTimeout(p, ms, label) {
-    return new Promise(function (resolve, reject) {
-      var t = setTimeout(function () { reject(new Error('Zeitüberschreitung (' + Math.round(ms / 1000) + ' s) bei: ' + label)); }, ms);
-      p.then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); });
-    });
+  async function onDisconnect() {
+    S.connected = false; updateButtons();
+    if (S.manual) { setStatus('Getrennt'); log('getrennt'); $('bpm').className = 'bpm'; return; }
+    log('Verbindung verloren');
+    if (S.reconnecting) return;
+    S.reconnecting = true; updateButtons();
+    for (var i = 1; i <= 5 && !S.manual; i++) {
+      setStatus('Verbindung verloren, neuer Versuch ' + i + '/5…', 'bad');
+      await sleep(2000 * i);
+      try { await setup(S.device); S.reconnecting = false; updateButtons(); log('Wieder verbunden'); return; } catch (e) {}
+    }
+    S.reconnecting = false; updateButtons();
+    setStatus('Wiederverbinden fehlgeschlagen. Bitte neu verbinden', 'bad');
   }
 
   $('connect').addEventListener('click', async function () {
+    S.manual = false;
     $('connect').disabled = true;
     try {
-      setStatus('1/5 Suche Pulsgurt… Dialog bitte bestätigen');
-      log('1/5 requestDevice');
-      device = await navigator.bluetooth.requestDevice({ filters: [{ services: ['heart_rate'] }] });
-      $('dev').textContent = device.name || 'unbenannt';
-      log('2/5 Gerät gewählt: ' + (device.name || '?') + ' (id ' + String(device.id).slice(0, 6) + '…)');
-      device.addEventListener('gattserverdisconnected', onDisconnect);
-
-      setStatus('2/5 Verbinde mit GATT… (max. 20 s)');
-      var server = await withTimeout(device.gatt.connect(), 20000, 'gatt.connect');
-      log('3/5 GATT verbunden');
-
-      setStatus('3/5 Suche Herzfrequenz-Dienst…');
-      var service = await withTimeout(server.getPrimaryService('heart_rate'), 15000, 'getPrimaryService');
-      log('4/5 Dienst heart_rate gefunden');
-
-      setStatus('4/5 Aktiviere Messwerte…');
-      var ch = await withTimeout(service.getCharacteristic('heart_rate_measurement'), 15000, 'getCharacteristic');
-      ch.addEventListener('characteristicvaluechanged', onValue);
-      await withTimeout(ch.startNotifications(), 15000, 'startNotifications');
-      log('5/5 Benachrichtigungen aktiv, warte auf Daten');
-
-      setStatus('Verbunden, warte auf Messwerte…', 'ok');
-      $('disconnect').disabled = false;
+      setStatus('Suche Pulsgurt… bitte im Dialog wählen');
+      var opts = $('all').checked
+        ? { acceptAllDevices: true, optionalServices: ['heart_rate'] }
+        : { filters: [{ services: ['heart_rate'] }] };
+      log('requestDevice ' + ($('all').checked ? '(alle Geräte)' : '(Filter heart_rate)'));
+      S.device = await navigator.bluetooth.requestDevice(opts);
+      $('dev').textContent = S.device.name || 'unbenannt';
+      log('Gerät gewählt: ' + (S.device.name || '?'));
+      S.device.addEventListener('gattserverdisconnected', onDisconnect);
+      await setup(S.device);
     } catch (e) {
-      setStatus('Fehler: ' + (e.name || '') + ' ' + (e.message || e), 'bad');
-      log('FEHLER: ' + (e.name || '') + ' – ' + (e.message || e));
-      try { if (device && device.gatt.connected) device.gatt.disconnect(); } catch (x) {}
+      setStatus('Fehler: ' + fmtErr(e), 'bad');
+      log('FEHLER: ' + fmtErr(e));
       $('connect').disabled = false;
     }
   });
 
-  document.addEventListener('visibilitychange', function () {
-    log('Seite ' + (document.hidden ? 'im Hintergrund' : 'wieder sichtbar'));
+  $('disconnect').addEventListener('click', function () {
+    S.manual = true;
+    try { if (S.device && S.device.gatt.connected) S.device.gatt.disconnect(); } catch (e) {}
+    S.connected = false; S.reconnecting = false; updateButtons();
+    setStatus('Getrennt');
   });
 
-  $('disconnect').addEventListener('click', function () {
-    if (device && device.gatt.connected) device.gatt.disconnect();
+  async function lockScreen() {
+    try {
+      if (!navigator.wakeLock) { $('wl').textContent = 'nicht verfügbar'; return; }
+      S.wl = await navigator.wakeLock.request('screen');
+      $('wl').textContent = 'ja'; $('wl').className = 'ok';
+      S.wl.addEventListener('release', function () { $('wl').textContent = 'freigegeben'; $('wl').className = ''; });
+    } catch (e) { $('wl').textContent = 'abgelehnt'; $('wl').className = 'bad'; }
+  }
+  function unlockScreen() { try { if (S.wl) S.wl.release(); } catch (e) {} S.wl = null; }
+
+  $('rec').addEventListener('click', function () {
+    if (!S.rec) {
+      S.samples = []; S.gaps = 0; S.maxGap = 0; S.dur = 0;
+      S.t0 = Date.now(); S.lastT = 0; S.rec = true;
+      lockScreen(); log('Aufzeichnung gestartet');
+    } else {
+      S.rec = false; S.dur = Date.now() - S.t0;
+      unlockScreen(); save(); log('Aufzeichnung gestoppt, ' + S.samples.length + ' Werte');
+    }
+    updateButtons();
   });
+
+  document.addEventListener('visibilitychange', function () {
+    log('Seite ' + (document.hidden ? 'im Hintergrund' : 'wieder sichtbar'));
+    if (!document.hidden && S.rec) lockScreen();
+  });
+
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify({ samples: S.samples, dur: S.dur || (Date.now() - S.t0), gaps: S.gaps, maxGap: S.maxGap })); } catch (e) {}
+  }
+  function restore() {
+    try {
+      var d = JSON.parse(localStorage.getItem(KEY) || 'null');
+      if (d && d.samples && d.samples.length) {
+        S.samples = d.samples; S.dur = d.dur || 0; S.gaps = d.gaps || 0; S.maxGap = d.maxGap || 0;
+        log('Letzte Aufzeichnung geladen (' + S.samples.length + ' Werte)');
+      }
+    } catch (e) {}
+  }
+
+  function csv() {
+    var lines = ['sekunde;bpm;uhrzeit'];
+    S.samples.forEach(function (p) {
+      lines.push((p.t / 1000).toFixed(1) + ';' + p.bpm + ';' + (p.ts ? new Date(p.ts).toLocaleTimeString('de-DE') : ''));
+    });
+    return lines.join('\n');
+  }
+  $('copy').addEventListener('click', async function () {
+    var text = csv(), ta = $('csv');
+    ta.value = text; ta.style.display = 'block';
+    try { await navigator.clipboard.writeText(text); setStatus('CSV kopiert', 'ok'); }
+    catch (e) { ta.focus(); ta.select(); setStatus('Kopieren blockiert: Text unten markieren und manuell kopieren', 'bad'); }
+  });
+  $('dl').addEventListener('click', function () {
+    try {
+      var blob = new Blob([csv()], { type: 'text/csv' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = 'puls.csv';
+      document.body.appendChild(a); a.click(); a.remove();
+      log('Download angestoßen');
+    } catch (e) { log('Download nicht möglich: ' + fmtErr(e)); }
+  });
+  $('reset').addEventListener('click', function () {
+    S.samples = []; S.gaps = 0; S.maxGap = 0; S.dur = 0;
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    $('csv').style.display = 'none'; updateButtons(); log('Aufzeichnung gelöscht');
+  });
+
+  // Diagramm
+  function draw() {
+    var c = $('chart'), dpr = window.devicePixelRatio || 1;
+    var w = c.clientWidth, h = c.clientHeight;
+    if (c.width !== w * dpr) { c.width = w * dpr; c.height = h * dpr; }
+    var g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
+    var s = S.samples;
+    g.fillStyle = '#8b94a1'; g.font = '11px sans-serif';
+    if (s.length < 2) { g.fillText('Noch keine Daten', 10, 20); return; }
+    var min = 999, max = 0;
+    s.forEach(function (p) { if (p.bpm < min) min = p.bpm; if (p.bpm > max) max = p.bpm; });
+    var y0 = Math.max(30, min - 10), y1 = max + 10;
+    var tmax = Math.max(60000, s[s.length - 1].t);
+    var L = 30, R = 6, T = 8, B = 16, pw = w - L - R, ph = h - T - B;
+    g.strokeStyle = '#262c35'; g.lineWidth = 1;
+    for (var k = 0; k <= 3; k++) {
+      var yy = T + ph * k / 3; g.beginPath(); g.moveTo(L, yy); g.lineTo(w - R, yy); g.stroke();
+      g.fillText(Math.round(y1 - (y1 - y0) * k / 3), 2, yy + 4);
+    }
+    g.fillText(fmtDur(0), L, h - 3); g.fillText(fmtDur(tmax), w - R - 34, h - 3);
+    g.strokeStyle = '#ff4d6d'; g.lineWidth = 2; g.beginPath();
+    var prev = null;
+    s.forEach(function (p, i) {
+      var x = L + pw * p.t / tmax, y = T + ph * (1 - (p.bpm - y0) / (y1 - y0));
+      if (i === 0 || (prev && p.t - prev.t > 3000)) g.moveTo(x, y); else g.lineTo(x, y);
+      prev = p;
+    });
+    g.stroke();
+  }
+
+  function tick() {
+    var now = Date.now(), s = S.samples;
+    if (S.lastT) $('since').textContent = ((now - S.lastT) / 1000).toFixed(1) + ' s';
+    var d = S.rec ? now - S.t0 : S.dur;
+    $('elapsed').textContent = fmtDur(d);
+    $('count').textContent = s.length;
+    $('gaps').textContent = S.gaps;
+    $('maxgap').textContent = S.maxGap ? (S.maxGap / 1000).toFixed(1) + ' s' : '–';
+    if (s.length) {
+      var mn = 999, mx = 0, sum = 0;
+      s.forEach(function (p) { if (p.bpm < mn) mn = p.bpm; if (p.bpm > mx) mx = p.bpm; sum += p.bpm; });
+      $('s-min').textContent = mn; $('s-max').textContent = mx; $('s-avg').textContent = Math.round(sum / s.length);
+    } else { $('s-min').textContent = '–'; $('s-max').textContent = '–'; $('s-avg').textContent = '–'; }
+    if (S.rec && ++S.tickN % 20 === 0) save();
+    if (S.rec && S.connected && S.lastT && now - S.lastT > 3000) setStatus('Kein Signal seit ' + ((now - S.lastT) / 1000).toFixed(0) + ' s', 'bad');
+    draw();
+  }
+
+  restore(); updateButtons(); tick();
+  setInterval(tick, 500);
+  window.addEventListener('resize', draw);
 })();
 </script>
 </body>
