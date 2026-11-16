@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Puls Minitest</title>
+<style>
+  :root { --bg:#111418; --fg:#f2f4f7; --mute:#8b94a1; --card:#1b2027; --ok:#3ecf8e; --bad:#ff5d5d; --acc:#ff4d6d; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.4 -apple-system, system-ui, sans-serif; padding:20px; max-width:480px; margin-inline:auto; }
+  h1 { font-size:18px; margin:0 0 16px; font-weight:600; }
+  .card { background:var(--card); border-radius:14px; padding:16px; margin-bottom:12px; }
+  .bpm { font-size:96px; font-weight:700; line-height:1; text-align:center; font-variant-numeric:tabular-nums; }
+  .bpm.live { color:var(--acc); }
+  .unit { text-align:center; color:var(--mute); font-size:14px; margin-top:4px; }
+  button { width:100%; padding:16px; font-size:17px; font-weight:600; border:0; border-radius:12px; background:var(--acc); color:#fff; }
+  button.sec { background:#2a313b; margin-top:8px; }
+  button:disabled { opacity:.4; }
+  .row { display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #262c35; font-size:14px; }
+  .row:last-child { border:0; }
+  .row span:first-child { color:var(--mute); }
+  .ok { color:var(--ok); } .bad { color:var(--bad); }
+  #status { position:sticky; top:0; z-index:5; background:#1b2027; border-radius:10px; padding:10px 12px; text-align:center; margin-bottom:12px; color:var(--mute); min-height:22px; }
+  #status.ok { color:var(--ok); } #status.bad { color:var(--bad); }
+  #log { font:12px/1.5 ui-monospace, monospace; color:var(--mute); white-space:pre-wrap; max-height:140px; overflow:auto; }
+</style>
+</head>
+<body>
+<h1>Puls Minitest</h1>
+<div id="status">Nicht verbunden</div>
+
+<div class="card">
+  <div id="bpm" class="bpm">--</div>
+  <div class="unit">BPM</div>
+</div>
+
+<button id="connect">Pulsgurt verbinden</button>
+<button id="disconnect" class="sec" disabled>Trennen</button>
+
+<div class="card" style="margin-top:12px">
+  <div class="row"><span>Gerät</span><span id="dev">–</span></div>
+  <div class="row"><span>Letzte Messung</span><span id="last">–</span></div>
+  <div class="row"><span>Messwerte gesamt</span><span id="count">0</span></div>
+  <div class="row"><span>RR-Intervall (ms)</span><span id="rr">–</span></div>
+  <div class="row"><span>Hautkontakt</span><span id="contact">–</span></div>
+</div>
+
+<div class="card">
+  <div class="row"><span>Sicherer Kontext (HTTPS)</span><span id="d-secure">–</span></div>
+  <div class="row"><span>Web Bluetooth vorhanden</span><span id="d-bt">–</span></div>
+  <div class="row"><span>Bluetooth im Frame erlaubt</span><span id="d-policy">–</span></div>
+  <div class="row"><span>Eingebettet (iframe)</span><span id="d-frame">–</span></div>
+</div>
+
+<div class="card"><div id="log">Log…</div></div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var device = null, count = 0;
+
+  function log(msg) {
+    var t = new Date().toLocaleTimeString('de-DE');
+    var el = $('log');
+    el.textContent = t + '  ' + msg + '\n' + (el.textContent === 'Log…' ? '' : el.textContent);
+  }
+  function setStatus(msg, cls) { var s = $('status'); s.textContent = msg; s.className = cls || ''; }
+  function flag(id, ok, text) { var e = $(id); e.textContent = text; e.className = ok ? 'ok' : 'bad'; }
+
+  // Diagnose
+  flag('d-secure', window.isSecureContext, window.isSecureContext ? 'ja' : 'nein');
+  flag('d-bt', !!navigator.bluetooth, navigator.bluetooth ? 'ja' : 'nein');
+  var inFrame = false;
+  try { inFrame = window.self !== window.top; } catch (e) { inFrame = true; }
+  $('d-frame').textContent = inFrame ? 'ja' : 'nein';
+  try {
+    var pol = document.permissionsPolicy || document.featurePolicy;
+    if (pol && pol.allowsFeature) {
+      var allowed = pol.allowsFeature('bluetooth');
+      flag('d-policy', allowed, allowed ? 'ja' : 'nein');
+    } else {
+      $('d-policy').textContent = 'unbekannt';
+    }
+  } catch (e) { $('d-policy').textContent = 'unbekannt'; }
+
+  if (!navigator.bluetooth) {
+    setStatus('Dieser Browser kann kein Web Bluetooth. Auf dem iPhone: Bluefy nutzen', 'bad');
+    $('connect').disabled = true;
+  }
+
+  function parse(dv) {
+    var flags = dv.getUint8(0), i = 1, bpm;
+    if (flags & 0x01) { bpm = dv.getUint16(i, true); i += 2; } else { bpm = dv.getUint8(i); i += 1; }
+    var contactSupported = !!(flags & 0x04), contact = !!(flags & 0x02);
+    if (flags & 0x08) i += 2; // Energy Expended
+    var rr = [];
+    if (flags & 0x10) {
+      while (i + 1 < dv.byteLength) { rr.push(Math.round(dv.getUint16(i, true) / 1024 * 1000)); i += 2; }
+    }
+    return { bpm: bpm, rr: rr, contactSupported: contactSupported, contact: contact };
+  }
+
+  function onValue(ev) {
+    var m = parse(ev.target.value);
+    count++;
+    $('bpm').textContent = m.bpm;
+    $('bpm').className = 'bpm live';
+    $('last').textContent = new Date().toLocaleTimeString('de-DE');
+    $('count').textContent = count;
+    $('rr').textContent = m.rr.length ? m.rr.join(', ') : '–';
+    $('contact').textContent = m.contactSupported ? (m.contact ? 'ja' : 'nein') : 'nicht unterstützt';
+  }
+
+  function onDisconnect() {
+    setStatus('Verbindung getrennt', 'bad');
+    $('bpm').className = 'bpm';
+    $('disconnect').disabled = true;
+    $('connect').disabled = false;
+    log('getrennt');
+  }
+
+  function withTimeout(p, ms, label) {
+    return new Promise(function (resolve, reject) {
+      var t = setTimeout(function () { reject(new Error('Zeitüberschreitung (' + Math.round(ms / 1000) + ' s) bei: ' + label)); }, ms);
+      p.then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); });
+    });
+  }
+
+  $('connect').addEventListener('click', async function () {
+    $('connect').disabled = true;
+    try {
+      setStatus('1/5 Suche Pulsgurt… Dialog bitte bestätigen');
+      log('1/5 requestDevice');
+      device = await navigator.bluetooth.requestDevice({ filters: [{ services: ['heart_rate'] }] });
+      $('dev').textContent = device.name || 'unbenannt';
+      log('2/5 Gerät gewählt: ' + (device.name || '?') + ' (id ' + String(device.id).slice(0, 6) + '…)');
+      device.addEventListener('gattserverdisconnected', onDisconnect);
+
+      setStatus('2/5 Verbinde mit GATT… (max. 20 s)');
+      var server = await withTimeout(device.gatt.connect(), 20000, 'gatt.connect');
+      log('3/5 GATT verbunden');
+
+      setStatus('3/5 Suche Herzfrequenz-Dienst…');
+      var service = await withTimeout(server.getPrimaryService('heart_rate'), 15000, 'getPrimaryService');
+      log('4/5 Dienst heart_rate gefunden');
+
+      setStatus('4/5 Aktiviere Messwerte…');
+      var ch = await withTimeout(service.getCharacteristic('heart_rate_measurement'), 15000, 'getCharacteristic');
+      ch.addEventListener('characteristicvaluechanged', onValue);
+      await withTimeout(ch.startNotifications(), 15000, 'startNotifications');
+      log('5/5 Benachrichtigungen aktiv, warte auf Daten');
+
+      setStatus('Verbunden, warte auf Messwerte…', 'ok');
+      $('disconnect').disabled = false;
+    } catch (e) {
+      setStatus('Fehler: ' + (e.name || '') + ' ' + (e.message || e), 'bad');
+      log('FEHLER: ' + (e.name || '') + ' – ' + (e.message || e));
+      try { if (device && device.gatt.connected) device.gatt.disconnect(); } catch (x) {}
+      $('connect').disabled = false;
+    }
+  });
+
+  document.addEventListener('visibilitychange', function () {
+    log('Seite ' + (document.hidden ? 'im Hintergrund' : 'wieder sichtbar'));
+  });
+
+  $('disconnect').addEventListener('click', function () {
+    if (device && device.gatt.connected) device.gatt.disconnect();
+  });
+})();
+</script>
+</body>
+</html>
